@@ -36,4 +36,16 @@ handle_new_client_connection(Http_Info* info, fd_set* master_desk, int* max_sz);
 int
 handle_request(Http_Info* info, fd_set* master_desk, int connection_sock);
 
+/* if error should return -1 otherwise return 0  */
+int
+index_response(int sock_fd, const char* str);
+
+/* if error should return -1 otherwise return 0 */
+int
+not_found_response(int sock_fd);
+
+/* if error should return -1 otherwise return 0 */
+int
+echo_response(int sock_fd, char* value);
+
 #endif

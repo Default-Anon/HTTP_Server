@@ -79,13 +79,14 @@ handle_request(Http_Info* info, fd_set* master, int connection_sock)
   char* end_path = strchr(++path, ' ');
   *end_path = '\0';
   if (strcmp(path, "/") == 0) {
-    send(
-      connection_sock, RESPONSE_IF_CONNECTED, strlen(RESPONSE_IF_CONNECTED), 0);
+    if (index_response(connection_sock, RESPONSE_IF_CONNECTED))
+      return -1;
+  } else if (strncmp(path, "/echo/", strlen("/echo/")) == 0) {
+    if (echo_response(connection_sock, path + strlen("/echo/")))
+      return -1;
   } else {
-    send(connection_sock,
-         "HTTP/1.1 404 Not Found\r\n\r\n",
-         strlen("HTTP/1.1 404 Not Found\r\n\r\n"),
-         0);
+    if (not_found_response(connection_sock))
+      return -1;
   }
   return 0;
 }

@@ -1,14 +1,6 @@
 #include "headers/utils.h"
-#include <errno.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
 #include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <unistd.h>
+
 static int signal_status = 1;
 void
 sig_int_handler()
@@ -31,9 +23,6 @@ main()
   setbuf(stderr, NULL);
   // handle ctrl-c interrupt
   signal(SIGINT, sig_int_handler);
-  /* You can use print statements as follows for debugging, they'll be
-   visible when running tests. */
-  printf("Logs from your program will appear here!\n");
 
   if (init_http_server(&info))
     return -1;
@@ -48,7 +37,7 @@ main()
     if (select(max_desk + 1, &slaves_desk, 0, 0, &time) == -1) {
       printf("select():\t%d,%s\n", errno, strerror(errno));
       shutdown_http_server(&info);
-      return -1;
+      return 0;
     }
     for (int i = 0; i <= max_desk; i++) {
       if (FD_ISSET(i, &slaves_desk)) {
