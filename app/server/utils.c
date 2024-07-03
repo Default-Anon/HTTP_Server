@@ -84,13 +84,41 @@ handle_request(Http_Info* info, fd_set* master, int connection_sock)
   } else if (strncmp(path, "/echo/", strlen("/echo/")) == 0) {
     if (echo_response(connection_sock, path + strlen("/echo/")))
       return -1;
+  } else if (strncmp(path, "/user-agent", strlen("/user-agent")) == 0) {
+    *end_path = ' ';
+    if (user_agent_response(connection_sock, ++end_path))
+      return -1;
   } else {
     if (not_found_response(connection_sock))
       return -1;
   }
   return 0;
 }
-
+char*
+get_header_val(const char* header_name, char* buf)
+{
+  int match_counter = 0;
+  for (int i = 0; i < strlen(buf); i++) {
+    if (buf[i] == *header_name) {
+      for (int j = i; j < strlen(header_name) + i; j++) {
+        if (buf[j] == *(header_name + j - i))
+          match_counter++;
+        else
+          break;
+      }
+      printf("match_counter is %d\n", match_counter);
+      if (match_counter == strlen(header_name)) {
+        char* endpoint_header = strchr(buf + i, '\r');
+        *endpoint_header = '\0';
+        return buf + i + match_counter +
+               strlen(": "); // User-Agent: {our value}\r\n
+      } else {
+        match_counter = 0;
+      }
+    }
+  }
+  return NULL;
+}
 void
 shutdown_http_server(Http_Info** init_http_ptr)
 {

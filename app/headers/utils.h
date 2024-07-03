@@ -48,4 +48,12 @@ not_found_response(int sock_fd);
 int
 echo_response(int sock_fd, char* value);
 
+/* if error should return -1 otherwise return 0 */
+int
+user_agent_response(int sock_fd, char* value);
+
+/* if error should return NULL */
+char*
+get_header_val(const char* header_name, char* buf);
+
 #endif
