@@ -8,10 +8,18 @@ sig_int_handler()
   signal_status = 0;
 }
 
-int
-main()
+void
+usage()
 {
+  puts("You must run program with directory flag");
+  puts("Example:");
+  puts("\t<http-server-exe> --direcory {PATH}");
+}
 
+int
+main(int argc, char** argv)
+{
+  char* path = "/tmp/";
   Http_Info* info;
   int sock_counter = 0, max_desk;
   fd_set master;
@@ -23,6 +31,12 @@ main()
   setbuf(stderr, NULL);
   // handle ctrl-c interrupt
   signal(SIGINT, sig_int_handler);
+
+  if (argc < 3) {
+    usage();
+  } else {
+    path = argv[2];
+  }
 
   if (init_http_server(&info))
     return -1;
@@ -42,10 +56,10 @@ main()
     for (int i = 0; i <= max_desk; i++) {
       if (FD_ISSET(i, &slaves_desk)) {
         if (i == info->master_socket) {
-          if (handle_new_client_connection(info, &master, &max_desk))
+          if (handle_new_client_connection(info, &master, &max_desk, path))
             return -1;
         } else {
-          if (handle_request(info, &master, i))
+          if (handle_request(info, &master, i, path))
             return -1;
         }
       }

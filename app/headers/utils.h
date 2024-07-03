@@ -14,6 +14,8 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+static char* PATH;
+
 typedef struct Http_Info
 {
   int master_socket;
@@ -31,10 +33,16 @@ void
 shutdown_http_server(Http_Info** init_http_ptr);
 /* if handle is correct should return 0 otherwise -1 */
 int
-handle_new_client_connection(Http_Info* info, fd_set* master_desk, int* max_sz);
+handle_new_client_connection(Http_Info* info,
+                             fd_set* master_desk,
+                             int* max_sz,
+                             const char* temp_path);
 /* if handle is correct should return 0 otherwise -1 */
 int
-handle_request(Http_Info* info, fd_set* master_desk, int connection_sock);
+handle_request(Http_Info* info,
+               fd_set* master_desk,
+               int connection_sock,
+               const char* temp_path);
 
 /* if error should return -1 otherwise return 0  */
 int
@@ -55,5 +63,9 @@ user_agent_response(int sock_fd, char* value);
 /* if error should return NULL */
 char*
 get_header_val(const char* header_name, char* buf);
+
+/* if error shoult return -1 otherwise 0*/
+int
+file_response(int sock_fd, const char* temp_path, char* file_name);
 
 #endif

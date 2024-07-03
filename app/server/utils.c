@@ -50,7 +50,8 @@ init_http_server(Http_Info** init_http_ptr)
 int
 handle_new_client_connection(Http_Info* info,
                              fd_set* master_desk,
-                             int* max_desk)
+                             int* max_desk,
+                             const char* temp_path)
 {
   int sock;
   if ((sock = accept(info->master_socket,
@@ -61,12 +62,15 @@ handle_new_client_connection(Http_Info* info,
   }
   FD_SET(sock, master_desk);
   *max_desk = sock > *max_desk ? sock : *max_desk;
-  handle_request(info, master_desk, sock);
+  handle_request(info, master_desk, sock, temp_path);
   return 0;
 }
 
 int
-handle_request(Http_Info* info, fd_set* master, int connection_sock)
+handle_request(Http_Info* info,
+               fd_set* master,
+               int connection_sock,
+               const char* temp_path)
 {
   char recv_buf[4096] = { 0 };
   int recv_bytes = recv(connection_sock, recv_buf, sizeof(recv_buf), 0);
@@ -87,6 +91,9 @@ handle_request(Http_Info* info, fd_set* master, int connection_sock)
   } else if (strncmp(path, "/user-agent", strlen("/user-agent")) == 0) {
     *end_path = ' ';
     if (user_agent_response(connection_sock, ++end_path))
+      return -1;
+  } else if (strncmp(path, "/files/", strlen("/files/")) == 0) {
+    if (file_response(connection_sock, temp_path, path + strlen("/files/")))
       return -1;
   } else {
     if (not_found_response(connection_sock))
