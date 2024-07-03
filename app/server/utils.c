@@ -1,4 +1,5 @@
 #include "../headers/utils.h"
+#include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
 
@@ -93,8 +94,18 @@ handle_request(Http_Info* info,
     if (user_agent_response(connection_sock, ++end_path))
       return -1;
   } else if (strncmp(path, "/files/", strlen("/files/")) == 0) {
-    if (file_response(connection_sock, temp_path, path + strlen("/files/")))
-      return -1;
+    *(path - 1) = '\0';
+    if (strcmp(recv_buf, "POST") == 0) {
+      *(path - 1) = ' ';
+      if (create_edit_file_response(
+            connection_sock, temp_path, path + strlen("/files/"), recv_buf)) {
+        return -1;
+      }
+    } else {
+      *(path - 1) = ' ';
+      if (file_response(connection_sock, temp_path, path + strlen("/files/")))
+        return -1;
+    }
   } else {
     if (not_found_response(connection_sock))
       return -1;
@@ -126,6 +137,31 @@ get_header_val(const char* header_name, char* buf)
   }
   return NULL;
 }
+
+File_Info*
+create_or_init_file(const char* temp_path, char* file_name, Query_Type type)
+{
+  File_Info* fli = (File_Info*)malloc(sizeof(*fli));
+  char* specify_file_access = (char*)malloc(sizeof(char) * strlen("a+"));
+  memset(specify_file_access, 0, strlen("a+"));
+  if (type == GET)
+    memcpy(specify_file_access, "r", strlen("r"));
+  else
+    memcpy(specify_file_access, "a+", strlen("a+"));
+  memset(fli, 0, sizeof(*fli));
+  memcpy(fli->complete_path, temp_path, strlen(temp_path));
+  memcpy(fli->complete_path + strlen(temp_path), file_name, strlen(file_name));
+
+  if ((fli->file_ptr = fopen(fli->complete_path, specify_file_access)) !=
+      NULL) {
+    fseek(fli->file_ptr, 0, SEEK_END);
+    fli->raw_sz = ftell(fli->file_ptr);
+    rewind(fli->file_ptr);
+  }
+  free(specify_file_access);
+  return fli;
+}
+
 void
 shutdown_http_server(Http_Info** init_http_ptr)
 {

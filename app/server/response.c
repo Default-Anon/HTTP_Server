@@ -62,6 +62,7 @@ user_agent_response(int sock_fd, char* value)
           "%lu\r\n\r\n%s",
           strlen(user_agent_parse_val),
           user_agent_parse_val);
+  printf("http_response is %s\n", http_response);
   int sent_bytes = send(sock_fd, http_response, strlen(http_response), 0);
   free(http_response);
   if (sent_bytes == -1) {
@@ -73,38 +74,81 @@ user_agent_response(int sock_fd, char* value)
 int
 file_response(int sock_fd, const char* temp_path, char* file_name)
 {
-  size_t path_len = strlen(temp_path) + strlen(file_name) + 1;
-  char* complete_path = (char*)malloc(path_len);
-  memset(complete_path, 0, path_len);
-  memcpy(complete_path, temp_path, strlen(temp_path));
-  memcpy(complete_path + strlen(temp_path), file_name, strlen(file_name));
-  FILE* fd_ptr = fopen(complete_path, "r");
-  if (fd_ptr == NULL) {
+  printf("in file_response\n");
+  size_t buf_sz = 1024;
+  Query_Type type = GET;
+  File_Info* fle = create_or_init_file(temp_path, file_name, type);
+  if (fle->file_ptr == NULL) {
     not_found_response(sock_fd);
+  } else {
+    char* http_chunk = "HTTP/1.1 200 OK\r\nContent-Type: "
+                       "application/octet-stream\r\nContent-Length: \r\n\r\n";
+    char* http_response = (char*)malloc(strlen(http_chunk) + 1 +
+                                        strlen(STR(file_length)) + fle->raw_sz);
+    char* file_buf = calloc(buf_sz, sizeof(char));
+    fread(file_buf, sizeof(char), buf_sz, fle->file_ptr);
+    int read_bytes = 0;
+    sprintf(http_response,
+            "HTTP/1.1 200 OK\r\nContent-Type: "
+            "application/octet-stream\r\nContent-Length: %zu\r\n\r\n%s",
+            fle->raw_sz,
+            file_buf);
+    printf("http_response is %s\n", http_response);
+    int sent_bytes = send(sock_fd, http_response, strlen(http_response), 0);
+    if (fle->raw_sz > buf_sz) {
+      memset(file_buf, 0, buf_sz);
+      while ((read_bytes =
+                fread(file_buf, sizeof(char), buf_sz, fle->file_ptr)) > 0) {
+        sent_bytes = send(sock_fd, file_buf, read_bytes, 0);
+        memset(file_buf, 0, read_bytes);
+      }
+    }
+    fclose(fle->file_ptr);
+    free(fle);
+    free(file_buf);
+    free(http_response);
+
+    if (sent_bytes == -1) {
+      printf("send() error:\t %d,%s\n", errno, strerror(errno));
+      return -1;
+    }
   }
-  fseek(fd_ptr, 0, SEEK_END);
-  size_t file_length = ftell(fd_ptr);
-  printf("file_length is %zu\n", file_length);
-  rewind(fd_ptr);
-  char* http_chunk = "HTTP/1.1 200 OK\r\nContent-Type: "
-                     "application/octet-stream\r\nContent-Length: \r\n\r\n";
-  char* http_response = (char*)malloc(strlen(http_chunk) + 1 +
-                                      strlen(STR(file_length)) + file_length);
-  char* file_buf = calloc(file_length, sizeof(char));
-  fread(file_buf, sizeof(char), file_length, fd_ptr);
-  printf("file_buf is %s\n", file_buf);
-  sprintf(http_response,
-          "HTTP/1.1 200 OK\r\nContent-Type: "
-          "application/octet-stream\r\nContent-Length: %zu\r\n\r\n%s",
-          file_length,
-          file_buf);
-  int sent_bytes = send(sock_fd, http_response, strlen(http_response), 0);
+  return 0;
+}
 
-  free(complete_path);
-  free(file_buf);
-  free(http_response);
-  fclose(fd_ptr);
-
+int
+create_edit_file_response(int sock_fd,
+                          const char* temp_path,
+                          char* file_name,
+                          char* raw_query)
+{
+  size_t buf_sz = 1024;
+  char *body = NULL, *body_cpy = NULL, *body_sz = NULL;
+  Query_Type type = POST;
+  File_Info* fle = create_or_init_file(temp_path, file_name, type);
+  if (fle->file_ptr == NULL) {
+    printf("fopen() error, %d,%s\n", errno, strerror(errno));
+    return -1;
+  }
+  char* end = strchr(raw_query, '\0');
+  *end = ' ';
+  body_cpy = strchr(raw_query, '\n');
+  while ((body_cpy = strchr(++body_cpy, '\n')) != NULL)
+    body = body_cpy;
+  ++body;
+  body_sz = get_header_val("Content-Length", raw_query);
+  printf("body is %s\n", body);
+  int write_bytes = fwrite(body, sizeof(char), atoi(body_sz), fle->file_ptr);
+  if (write_bytes == 0) {
+    printf("fwrite() error,%d %s\n", errno, strerror(errno));
+    return -1;
+  }
+  fclose(fle->file_ptr);
+  free(fle);
+  int sent_bytes = send(sock_fd,
+                        "HTTP/1.1 201 Created\r\n\r\n",
+                        strlen("HTTP/1.1 201 Created\r\n\r\n"),
+                        0);
   if (sent_bytes == -1) {
     printf("send() error:\t %d,%s\n", errno, strerror(errno));
     return -1;

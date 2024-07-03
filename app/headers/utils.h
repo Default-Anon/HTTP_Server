@@ -23,6 +23,19 @@ typedef struct Http_Info
   socklen_t settings_len;
 } Http_Info;
 
+typedef struct File_Info
+{
+  size_t raw_sz;
+  FILE* file_ptr;
+  char complete_path[256];
+} File_Info;
+
+typedef enum Query_Type
+{
+  GET,
+  POST
+} Query_Type;
+
 #define HTTP_SERVER_PORT 4221
 #define HTTP_SERVER_MAX_LISTEN_CLIENTS 5
 
@@ -59,13 +72,26 @@ echo_response(int sock_fd, char* value);
 /* if error should return -1 otherwise return 0 */
 int
 user_agent_response(int sock_fd, char* value);
-
-/* if error should return NULL */
+/*
+ * get clean value with \0
+ * if error should return NULL
+ * */
 char*
 get_header_val(const char* header_name, char* buf);
 
 /* if error shoult return -1 otherwise 0*/
 int
 file_response(int sock_fd, const char* temp_path, char* file_name);
+
+/* if error should return -1 otherwise 0*/
+int
+create_edit_file_response(int sock_fd,
+                          const char* temp_path,
+                          char* file_name,
+                          char* raw_query);
+
+/* if error FILE_INFO->file_ptr == NULL */
+File_Info*
+create_or_init_file(const char* temp_path, char* file_name, Query_Type type);
 
 #endif
