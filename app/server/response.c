@@ -29,14 +29,43 @@ not_found_response(int sock_fd)
 int
 echo_response(int sock_fd, char* value)
 {
+  Encoding encode_status = get_encode_type(value);
+  char* echo_value_for_answer = strchr(value, ' ');
   char* http_chunk =
     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: \r\n\r\n";
-  char* http_response = (char*)malloc(strlen(http_chunk) + 1 + strlen(value));
-  sprintf(http_response,
-          "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
-          "%lu\r\n\r\n%s",
-          strlen(value),
-          value);
+
+  char* http_response = NULL;
+
+  switch (encode_status) {
+    case GZIP: {
+      printf("in gzip\n");
+      http_response =
+        (char*)malloc(strlen(http_chunk) + sizeof('\0') + strlen(value) +
+                      strlen("Content-Encoding: gzip\r\n"));
+      sprintf(http_response,
+              "HTTP/1.1 200 OK\r\nContent-Type: "
+              "text/plain\r\nContent-Encoding:gzip\r\nContent-Length: "
+              "%lu\r\n\r\n%s",
+              strlen(value),
+              value);
+      break;
+    }
+    case INVALID: {
+      printf("in invalid\n");
+      http_response =
+        (char*)malloc(strlen(http_chunk) + sizeof('\0') + strlen(value));
+      sprintf(http_response,
+              "HTTP/1.1 200 OK\r\nContent-Type: "
+              "text/plain\r\nContent-Length: "
+              "%lu\r\n\r\n%s",
+              strlen(value),
+              value);
+
+      break;
+    }
+    default:
+      break;
+  }
   int sent_bytes = send(sock_fd, http_response, strlen(http_response), 0);
   free(http_response);
   if (sent_bytes == -1) {
@@ -49,19 +78,43 @@ echo_response(int sock_fd, char* value)
 int
 user_agent_response(int sock_fd, char* value)
 {
+  Encoding encode_status = get_encode_type(value);
   char* user_agent_parse_val = get_header_val("User-Agent", value);
+  char* http_response = NULL;
+  char* end = strchr(user_agent_parse_val, '\r');
+  *end = '\0';
   if (user_agent_parse_val == NULL)
     return -1;
   char* http_chunk =
     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: \r\n\r\n";
-  char* http_response =
-    (char*)malloc(strlen(http_chunk) + 1 + strlen(user_agent_parse_val) +
-                  strlen(STR(user_agent_parse_val)));
-  sprintf(http_response,
-          "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
-          "%lu\r\n\r\n%s",
-          strlen(user_agent_parse_val),
-          user_agent_parse_val);
+  switch (encode_status) {
+    case GZIP: {
+      http_response = (char*)malloc(strlen(http_chunk) + sizeof('\0') +
+                                    strlen(user_agent_parse_val) +
+                                    strlen(STR(user_agent_parse_val)) +
+                                    strlen("Content-Encoding: gzip\r\n"));
+      sprintf(http_response,
+              "HTTP/1.1 200 OK\r\nContent-Type: "
+              "text/plain\r\nContent-Encoding: gzip\r\nContent-Length: "
+              "%lu\r\n\r\n%s",
+              strlen(user_agent_parse_val),
+              user_agent_parse_val);
+      break;
+    }
+    case INVALID: {
+      http_response = (char*)malloc(strlen(http_chunk) + sizeof('\0') +
+                                    strlen(user_agent_parse_val) +
+                                    strlen(STR(user_agent_parse_val)));
+      sprintf(http_response,
+              "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
+              "%lu\r\n\r\n%s",
+              strlen(user_agent_parse_val),
+              user_agent_parse_val);
+      break;
+    }
+    default:
+      break;
+  }
   printf("http_response is %s\n", http_response);
   int sent_bytes = send(sock_fd, http_response, strlen(http_response), 0);
   free(http_response);
@@ -71,47 +124,69 @@ user_agent_response(int sock_fd, char* value)
   }
   return 0;
 }
+
 int
 file_response(int sock_fd, const char* temp_path, char* file_name)
 {
-  printf("in file_response\n");
+  Encoding encode_status =
+    get_encode_type(file_name); // file_name because its ptr on recv_buffer,
+                                // maybe its shitty anyways....
   size_t buf_sz = 1024;
   Query_Type type = GET;
+  int read_bytes = 0;
   File_Info* fle = create_or_init_file(temp_path, file_name, type);
   if (fle->file_ptr == NULL) {
     not_found_response(sock_fd);
   } else {
     char* http_chunk = "HTTP/1.1 200 OK\r\nContent-Type: "
                        "application/octet-stream\r\nContent-Length: \r\n\r\n";
-    char* http_response = (char*)malloc(strlen(http_chunk) + 1 +
-                                        strlen(STR(file_length)) + fle->raw_sz);
+    char* http_response = NULL;
     char* file_buf = calloc(buf_sz, sizeof(char));
-    fread(file_buf, sizeof(char), buf_sz, fle->file_ptr);
-    int read_bytes = 0;
-    sprintf(http_response,
-            "HTTP/1.1 200 OK\r\nContent-Type: "
-            "application/octet-stream\r\nContent-Length: %zu\r\n\r\n%s",
-            fle->raw_sz,
-            file_buf);
-    printf("http_response is %s\n", http_response);
+    switch (encode_status) {
+      case GZIP: {
+        http_response = (char*)malloc(strlen(http_chunk) + sizeof('\0') +
+                                      strlen(STR(fle->raw_sz)) +
+                                      strlen("Content-Encoding: gzip\r\n"));
+        sprintf(http_response,
+                "HTTP/1.1 200 OK\r\nContent-Type: "
+                "application/octet-stream\r\nContent-Encoding: "
+                "gzip\r\nContent-Length: %zu\r\n\r\n",
+                fle->raw_sz);
+        break;
+      }
+      case INVALID: {
+        http_response = (char*)malloc(strlen(http_chunk) + sizeof('\0') +
+                                      strlen(STR(fle->raw_sz)));
+        sprintf(http_response,
+                "HTTP/1.1 200 OK\r\nContent-Type: "
+                "application/octet-stream\r\nContent-Length: %zu\r\n\r\n",
+                fle->raw_sz);
+        break;
+      }
+      default:
+        break;
+    }
     int sent_bytes = send(sock_fd, http_response, strlen(http_response), 0);
+    int index = 0;
     if (fle->raw_sz > buf_sz) {
       memset(file_buf, 0, buf_sz);
       while ((read_bytes =
                 fread(file_buf, sizeof(char), buf_sz, fle->file_ptr)) > 0) {
         sent_bytes = send(sock_fd, file_buf, read_bytes, 0);
+        if (sent_bytes == -1) {
+          printf("send() error:\t %d,%s\n", errno, strerror(errno));
+          return -1;
+        }
         memset(file_buf, 0, read_bytes);
+        printf("In while loop %d\n", index);
+        ++index;
       }
     }
+    printf("send ended\n");
     fclose(fle->file_ptr);
     free(fle);
     free(file_buf);
     free(http_response);
-
-    if (sent_bytes == -1) {
-      printf("send() error:\t %d,%s\n", errno, strerror(errno));
-      return -1;
-    }
   }
   return 0;
 }
@@ -137,7 +212,8 @@ create_edit_file_response(int sock_fd,
     body = body_cpy;
   ++body;
   body_sz = get_header_val("Content-Length", raw_query);
-  printf("body is %s\n", body);
+  char* end_body = strchr(body_sz, '\r');
+  *end_body = '\0';
   int write_bytes = fwrite(body, sizeof(char), atoi(body_sz), fle->file_ptr);
   if (write_bytes == 0) {
     printf("fwrite() error,%d %s\n", errno, strerror(errno));

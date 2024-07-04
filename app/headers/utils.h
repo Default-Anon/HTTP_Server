@@ -36,6 +36,12 @@ typedef enum Query_Type
   POST
 } Query_Type;
 
+typedef enum Encoding
+{
+  INVALID,
+  GZIP
+} Encoding;
+
 #define HTTP_SERVER_PORT 4221
 #define HTTP_SERVER_MAX_LISTEN_CLIENTS 5
 
@@ -94,4 +100,8 @@ create_edit_file_response(int sock_fd,
 File_Info*
 create_or_init_file(const char* temp_path, char* file_name, Query_Type type);
 
+/* if don't have any query about encoding or haven't incoding handle return
+ * INVALID */
+Encoding
+get_encode_type(char* buf);
 #endif

@@ -87,6 +87,7 @@ handle_request(Http_Info* info,
     if (index_response(connection_sock, RESPONSE_IF_CONNECTED))
       return -1;
   } else if (strncmp(path, "/echo/", strlen("/echo/")) == 0) {
+    *end_path = '\0';
     if (echo_response(connection_sock, path + strlen("/echo/")))
       return -1;
   } else if (strncmp(path, "/user-agent", strlen("/user-agent")) == 0) {
@@ -124,10 +125,7 @@ get_header_val(const char* header_name, char* buf)
         else
           break;
       }
-      printf("match_counter is %d\n", match_counter);
       if (match_counter == strlen(header_name)) {
-        char* endpoint_header = strchr(buf + i, '\r');
-        *endpoint_header = '\0';
         return buf + i + match_counter +
                strlen(": "); // User-Agent: {our value}\r\n
       } else {
@@ -169,4 +167,20 @@ shutdown_http_server(Http_Info** init_http_ptr)
   free((*init_http_ptr));
 
   printf("http server status:\t OFF\n");
+}
+
+Encoding
+get_encode_type(char* buf)
+{
+  char* end_buf = strchr(buf, '\0');
+  *end_buf = ' ';
+  char* encoding_status = get_header_val("Accept-Encoding", buf);
+  *end_buf = ' ';
+  printf("encoding_status is %s\n", encoding_status);
+  if (encoding_status == NULL)
+    return INVALID;
+  else if (strncpy(encoding_status, "gzip", strlen("gzip")) == 0)
+    return GZIP;
+  else
+    return INVALID;
 }
