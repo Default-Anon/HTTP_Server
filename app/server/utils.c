@@ -176,10 +176,9 @@ get_encode_type(char* buf)
   *end_buf = ' ';
   char* encoding_status = get_header_val("Accept-Encoding", buf);
   *end_buf = ' ';
-  printf("encoding_status is %s\n", encoding_status);
   if (encoding_status == NULL)
     return INVALID;
-  else if (strncpy(encoding_status, "gzip", strlen("gzip")) == 0)
+  else if (strncmp(encoding_status, "gzip", strlen("gzip")) == 0)
     return GZIP;
   else
     return INVALID;

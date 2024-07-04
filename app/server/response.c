@@ -30,11 +30,12 @@ int
 echo_response(int sock_fd, char* value)
 {
   Encoding encode_status = get_encode_type(value);
-  char* echo_value_for_answer = strchr(value, ' ');
+  char* parse_value_for_answer = strchr(value, ' ');
   char* http_chunk =
     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: \r\n\r\n";
 
   char* http_response = NULL;
+  *parse_value_for_answer = '\0';
 
   switch (encode_status) {
     case GZIP: {
@@ -79,37 +80,36 @@ int
 user_agent_response(int sock_fd, char* value)
 {
   Encoding encode_status = get_encode_type(value);
-  char* user_agent_parse_val = get_header_val("User-Agent", value);
+  char* user_agent_val = get_header_val("User-Agent", value);
   char* http_response = NULL;
-  char* end = strchr(user_agent_parse_val, '\r');
-  *end = '\0';
-  if (user_agent_parse_val == NULL)
+  char* parse_user_agent_val = strchr(user_agent_val, '\r');
+  *parse_user_agent_val = '\0';
+  if (user_agent_val == NULL)
     return -1;
   char* http_chunk =
     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: \r\n\r\n";
   switch (encode_status) {
     case GZIP: {
-      http_response = (char*)malloc(strlen(http_chunk) + sizeof('\0') +
-                                    strlen(user_agent_parse_val) +
-                                    strlen(STR(user_agent_parse_val)) +
-                                    strlen("Content-Encoding: gzip\r\n"));
+      http_response = (char*)malloc(
+        strlen(http_chunk) + sizeof('\0') + strlen(user_agent_val) +
+        strlen(STR(user_agent_val)) + strlen("Content-Encoding: gzip\r\n"));
       sprintf(http_response,
               "HTTP/1.1 200 OK\r\nContent-Type: "
               "text/plain\r\nContent-Encoding: gzip\r\nContent-Length: "
               "%lu\r\n\r\n%s",
-              strlen(user_agent_parse_val),
-              user_agent_parse_val);
+              strlen(user_agent_val),
+              user_agent_val);
       break;
     }
     case INVALID: {
-      http_response = (char*)malloc(strlen(http_chunk) + sizeof('\0') +
-                                    strlen(user_agent_parse_val) +
-                                    strlen(STR(user_agent_parse_val)));
+      http_response =
+        (char*)malloc(strlen(http_chunk) + sizeof('\0') +
+                      strlen(user_agent_val) + strlen(STR(user_agent_val)));
       sprintf(http_response,
               "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
               "%lu\r\n\r\n%s",
-              strlen(user_agent_parse_val),
-              user_agent_parse_val);
+              strlen(user_agent_val),
+              user_agent_val);
       break;
     }
     default:
@@ -131,6 +131,9 @@ file_response(int sock_fd, const char* temp_path, char* file_name)
   Encoding encode_status =
     get_encode_type(file_name); // file_name because its ptr on recv_buffer,
                                 // maybe its shitty anyways....
+  char* parse_filename = strchr(file_name, ' ');
+  *parse_filename = '\0';
+
   size_t buf_sz = 1024;
   Query_Type type = GET;
   int read_bytes = 0;
@@ -168,21 +171,17 @@ file_response(int sock_fd, const char* temp_path, char* file_name)
     }
     int sent_bytes = send(sock_fd, http_response, strlen(http_response), 0);
     int index = 0;
-    if (fle->raw_sz > buf_sz) {
-      memset(file_buf, 0, buf_sz);
-      while ((read_bytes =
-                fread(file_buf, sizeof(char), buf_sz, fle->file_ptr)) > 0) {
-        sent_bytes = send(sock_fd, file_buf, read_bytes, 0);
-        if (sent_bytes == -1) {
-          printf("send() error:\t %d,%s\n", errno, strerror(errno));
-          return -1;
-        }
-        memset(file_buf, 0, read_bytes);
-        printf("In while loop %d\n", index);
-        ++index;
+    memset(file_buf, 0, buf_sz);
+    while ((read_bytes = fread(file_buf, sizeof(char), buf_sz, fle->file_ptr)) >
+           0) {
+      sent_bytes = send(sock_fd, file_buf, read_bytes, 0);
+      if (sent_bytes == -1) {
+        printf("send() error:\t %d,%s\n", errno, strerror(errno));
+        return -1;
       }
+      memset(file_buf, 0, read_bytes);
+      ++index;
     }
-    printf("send ended\n");
     fclose(fle->file_ptr);
     free(fle);
     free(file_buf);
