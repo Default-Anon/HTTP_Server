@@ -42,6 +42,12 @@ typedef enum Encoding
   GZIP
 } Encoding;
 
+typedef struct Encode_Arr
+{
+  size_t sz;
+  char** buf;
+} Encode_Arr;
+
 #define HTTP_SERVER_PORT 4221
 #define HTTP_SERVER_MAX_LISTEN_CLIENTS 5
 
@@ -104,4 +110,10 @@ create_or_init_file(const char* temp_path, char* file_name, Query_Type type);
  * INVALID */
 Encoding
 get_encode_type(char* buf);
+
+Encode_Arr*
+parse_encoding_arr(char* buf);
+
+void
+free_encode_arr(Encode_Arr* arr);
 #endif

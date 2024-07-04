@@ -172,14 +172,56 @@ shutdown_http_server(Http_Info** init_http_ptr)
 Encoding
 get_encode_type(char* buf)
 {
-  char* end_buf = strchr(buf, '\0');
-  *end_buf = ' ';
+  Encoding encoding_status = INVALID;
+  Encode_Arr* encode_types = parse_encoding_arr(buf);
+  if (!encode_types) {
+    return encoding_status;
+  }
+  for (int i = 0; i < encode_types->sz; i++) {
+    if (strncmp(encode_types->buf[i], "gzip", strlen("gzip")) == 0)
+      encoding_status = GZIP;
+  }
+  free_encode_arr(encode_types);
+  return encoding_status;
+}
+
+Encode_Arr*
+parse_encoding_arr(char* buf)
+{
+  Encode_Arr* encode_types = (Encode_Arr*)malloc(sizeof(*encode_types));
   char* encoding_status = get_header_val("Accept-Encoding", buf);
-  *end_buf = ' ';
-  if (encoding_status == NULL)
-    return INVALID;
-  else if (strncmp(encoding_status, "gzip", strlen("gzip")) == 0)
-    return GZIP;
-  else
-    return INVALID;
+  if (!encoding_status)
+    return NULL;
+  char* encoding_status_end_symbol = strchr(encoding_status, '\r');
+  *encoding_status_end_symbol = '\0';
+  char* buf_cpy = (char*)malloc(strlen(encoding_status) + sizeof('\0'));
+  memset(buf_cpy, 0, strlen(encoding_status) + sizeof('\0'));
+  memcpy(buf_cpy, encoding_status, strlen(encoding_status));
+  char* divide_symbol_space = buf_cpy;
+  encode_types->sz = 0;
+  encode_types->buf = (char**)malloc(sizeof(char*) * (encode_types->sz + 1));
+  while (divide_symbol_space) {
+    if (!encode_types->sz)
+      encode_types->buf[encode_types->sz] = buf_cpy;
+    else
+      encode_types->buf[encode_types->sz] =
+        buf_cpy + (divide_symbol_space - buf_cpy);
+    encode_types->sz++;
+    divide_symbol_space = strchr(divide_symbol_space, ' ');
+    if (divide_symbol_space != NULL) {
+      *divide_symbol_space = '\0';
+      ++divide_symbol_space;
+      encode_types->buf =
+        realloc(encode_types->buf, sizeof(char*) * (encode_types->sz + 1));
+    }
+  }
+
+  *encoding_status_end_symbol = '\r';
+  return encode_types;
+}
+void
+free_encode_arr(Encode_Arr* arr)
+{
+  free(*(arr->buf));
+  free(arr);
 }

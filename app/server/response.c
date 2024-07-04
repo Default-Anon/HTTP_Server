@@ -29,7 +29,11 @@ not_found_response(int sock_fd)
 int
 echo_response(int sock_fd, char* value)
 {
+  char* end_buf = strchr(value, '\0');
+  *end_buf = ' ';
+
   Encoding encode_status = get_encode_type(value);
+
   char* parse_value_for_answer = strchr(value, ' ');
   char* http_chunk =
     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: \r\n\r\n";
@@ -128,11 +132,13 @@ user_agent_response(int sock_fd, char* value)
 int
 file_response(int sock_fd, const char* temp_path, char* file_name)
 {
+  char* end_buf = strchr(file_name, '\0');
+  *end_buf = ' ';
+
   Encoding encode_status =
     get_encode_type(file_name); // file_name because its ptr on recv_buffer,
                                 // maybe its shitty anyways....
-  char* parse_filename = strchr(file_name, ' ');
-  *parse_filename = '\0';
+  *end_buf = '\0';
 
   size_t buf_sz = 1024;
   Query_Type type = GET;
