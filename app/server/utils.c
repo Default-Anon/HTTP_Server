@@ -192,11 +192,17 @@ parse_encoding_arr(char* buf)
   char* encoding_status = get_header_val("Accept-Encoding", buf);
   if (!encoding_status)
     return NULL;
+
+  /* convert Accept-Encoding values to clean str
+   * "without \r\n and other symbols"
+   */
   char* encoding_status_end_symbol = strchr(encoding_status, '\r');
   *encoding_status_end_symbol = '\0';
+
   char* buf_cpy = (char*)malloc(strlen(encoding_status) + sizeof('\0'));
-  memset(buf_cpy, 0, strlen(encoding_status) + sizeof('\0'));
+  memset(buf_cpy, '\0', strlen(encoding_status) + sizeof('\0'));
   memcpy(buf_cpy, encoding_status, strlen(encoding_status));
+
   char* divide_symbol_space = buf_cpy;
   encode_types->sz = 0;
   encode_types->buf = (char**)malloc(sizeof(char*) * (encode_types->sz + 1));
@@ -224,4 +230,26 @@ free_encode_arr(Encode_Arr* arr)
 {
   free(*(arr->buf));
   free(arr);
+}
+
+int
+compressToGzip(const char* input, int inputSize, char* output, int outputSize)
+{
+  z_stream zs;
+  zs.zalloc = Z_NULL;
+  zs.zfree = Z_NULL;
+  zs.opaque = Z_NULL;
+  zs.avail_in = (uInt)inputSize;
+  zs.next_in = (Bytef*)input;
+  zs.avail_out = (uInt)outputSize;
+  zs.next_out = (Bytef*)output;
+
+  // hard to believe they don't have a macro for gzip encoding, "Add 16" is the
+  // best thing zlib can do: "Add 16 to windowBits to write a simple gzip header
+  // and trailer around the compressed data instead of a zlib wrapper"
+  deflateInit2(
+    &zs, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16, 8, Z_DEFAULT_STRATEGY);
+  deflate(&zs, Z_FINISH);
+  deflateEnd(&zs);
+  return zs.total_out;
 }

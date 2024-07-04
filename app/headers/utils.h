@@ -9,12 +9,11 @@
 #include <string.h>
 #include <sys/select.h>
 #include <unistd.h>
+#include <zlib.h>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-
-static char* PATH;
 
 typedef struct Http_Info
 {
@@ -50,6 +49,7 @@ typedef struct Encode_Arr
 
 #define HTTP_SERVER_PORT 4221
 #define HTTP_SERVER_MAX_LISTEN_CLIENTS 5
+#define GZIP_BUFFER_SIZE 1024
 
 /* if init is correct should return 0 otherwise -1 */
 int
@@ -111,9 +111,14 @@ create_or_init_file(const char* temp_path, char* file_name, Query_Type type);
 Encoding
 get_encode_type(char* buf);
 
+/* if error return NULL */
 Encode_Arr*
 parse_encoding_arr(char* buf);
 
 void
 free_encode_arr(Encode_Arr* arr);
+
+/* zlib gzip framework */
+int
+compressToGzip(const char* input, int inputSize, char* output, int outputSize);
 #endif

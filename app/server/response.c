@@ -29,36 +29,42 @@ not_found_response(int sock_fd)
 int
 echo_response(int sock_fd, char* value)
 {
+  /* convert clean /echo/{val} to query again */
   char* end_buf = strchr(value, '\0');
   *end_buf = ' ';
 
   Encoding encode_status = get_encode_type(value);
-
   char* parse_value_for_answer = strchr(value, ' ');
   char* http_chunk =
     "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: \r\n\r\n";
 
   char* http_response = NULL;
   *parse_value_for_answer = '\0';
-
+  size_t http_response_sz = 0;
   switch (encode_status) {
     case GZIP: {
-      printf("in gzip\n");
-      http_response =
-        (char*)malloc(strlen(http_chunk) + sizeof('\0') + strlen(value) +
-                      strlen("Content-Encoding: gzip\r\n"));
+
+      char gzip_buffer[GZIP_BUFFER_SIZE] = { 0 };
+      int compressed_length =
+        compressToGzip(value, strlen(value), gzip_buffer, sizeof(gzip_buffer));
+      http_response_sz += strlen(http_chunk) + sizeof('\0') + strlen(value) +
+                          strlen("Content-Encoding: gzip\r\n") +
+                          strlen(STR(compressed_length)) + compressed_length;
+      http_response = (char*)malloc(http_response_sz);
+      memset(http_response, 0, http_response_sz);
       sprintf(http_response,
               "HTTP/1.1 200 OK\r\nContent-Type: "
               "text/plain\r\nContent-Encoding:gzip\r\nContent-Length: "
-              "%lu\r\n\r\n%s",
-              strlen(value),
-              value);
+              "%d\r\n\r\n",
+              compressed_length);
+      http_response_sz += compressed_length;
+      memcpy(strchr(http_response, '\0'), gzip_buffer, compressed_length);
       break;
     }
     case INVALID: {
       printf("in invalid\n");
-      http_response =
-        (char*)malloc(strlen(http_chunk) + sizeof('\0') + strlen(value));
+      http_response_sz = strlen(http_chunk) + sizeof('\0') + strlen(value);
+      http_response = (char*)malloc(http_response_sz);
       sprintf(http_response,
               "HTTP/1.1 200 OK\r\nContent-Type: "
               "text/plain\r\nContent-Length: "
@@ -71,7 +77,8 @@ echo_response(int sock_fd, char* value)
     default:
       break;
   }
-  int sent_bytes = send(sock_fd, http_response, strlen(http_response), 0);
+  printf("http_response is %s\n", http_response);
+  int sent_bytes = send(sock_fd, http_response, http_response_sz, 0);
   free(http_response);
   if (sent_bytes == -1) {
     printf("send() error:\t %d,%s", errno, strerror(errno));
@@ -132,12 +139,13 @@ user_agent_response(int sock_fd, char* value)
 int
 file_response(int sock_fd, const char* temp_path, char* file_name)
 {
+  /* convert clean file_name to query again*/
   char* end_buf = strchr(file_name, '\0');
   *end_buf = ' ';
 
   Encoding encode_status =
-    get_encode_type(file_name); // file_name because its ptr on recv_buffer,
-                                // maybe its shitty anyways....
+    get_encode_type(file_name); /* file_name because its ptr on recv_buffer,
+                                 *maybe its shitty anyways....*/
   *end_buf = '\0';
 
   size_t buf_sz = 1024;

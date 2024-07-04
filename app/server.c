@@ -1,3 +1,9 @@
+/*
+ * ver 1.0.0
+ * HTTP_SERVER FULL With Gzip for echo query
+ *
+ */
+
 #include "headers/utils.h"
 #include <signal.h>
 
